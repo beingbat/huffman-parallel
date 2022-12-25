@@ -52,9 +52,10 @@ void minHeapify(struct node **char_nodes, int i, int count)
     // Right Child (2*i)+2
     //Starting from Last level -1
     int current = i;
+    // printf("%d: %c\n", current, char_nodes[current]->val);
     // printf("Index (%d)\n", current);
     int left_child = 2*i+1;
-    int right_child = 2*i+1;
+    int right_child = 2*i+2;
     // set current to left child index
     if (left_child < count && char_nodes[current]->freq > char_nodes[left_child]->freq)
         current = left_child;
@@ -64,84 +65,97 @@ void minHeapify(struct node **char_nodes, int i, int count)
     // If index changed then swap smaller with ith index (smaller being current)
     if (current != i) 
     {
-        printf("Swapping at %d ", i);
+        // printf("Swapping at %d ", i);
         struct node *t = *&char_nodes[current];
         *&char_nodes[current] = *&char_nodes[i];
         *&char_nodes[i] = t;
+        // printf("'%c'[%d] with current '%c'[%d]\n", char_nodes[i]->val, char_nodes[i]->freq, char_nodes[current]->val, char_nodes[current]->freq);
         minHeapify(char_nodes, current, count);
-        printf("'%c'[%d] with current '%c'[%d]\n", char_nodes[i]->val, char_nodes[i]->freq, char_nodes[current]->val, char_nodes[current]->freq);
     }
 }
 
-// struct node *extractMin(struct node *minHeap, int count) {
-//   struct node *temp = &minHeap[0];
-//   minHeap[0] = minHeap[count - 1];
-//   minHeapify(minHeap, 0, count);
-//   return temp;
-// }
+struct node *extractMin(struct node **minHeap, int count) {
+  struct node *temp = minHeap[0];
+  minHeap[0] = minHeap[count - 1];
+  count--;
+  minHeapify(minHeap, 0, count);
+  return temp;
+}
 
-// // Insertion function
-// void insertMinHeap(struct node *char_nodes, struct node *new_node, int count) {
-//   int i = count;
-//   while (i && new_node->freq < char_nodes[(i - 1) / 2].freq) {
-//     char_nodes[i] = char_nodes[(i - 1) / 2];
-//     i = (i - 1) / 2;
-//   }
+// Insertion function
+void insertMinHeap(struct node **char_nodes, struct node *new_node, int count) {
+  int i = count-1;
+  char_nodes[i] = new_node;
+  while (i>0 && new_node->freq < char_nodes[(i - 1) / 2]->freq) 
+  {
+    // printf("Swapped %d %c-%d with %c-%d\n",i,  char_nodes[i]->val, char_nodes[i]->freq, char_nodes[(i-1)/2]->val, char_nodes[(i-1)/2]->freq);
+    struct node *t = *&char_nodes[(i - 1) / 2];
+    *&char_nodes[i] = t;
+    *&char_nodes[(i - 1) / 2] = *&char_nodes[i];;
+    i = (i - 1) / 2;
+    // for(int i=0; i<count; i++)
+    //     printf("'%c': %d\t", char_nodes[i]->val, char_nodes[i]->freq);
+  }
 //   char_nodes[i] = new_node;
-// }
+}
 
-struct node** findEncodings(struct node** char_nodes, int count)
+struct node* findEncodings(struct node** char_nodes, int count)
 {
     for (int i = (count - 1); i >= 0; --i)
         minHeapify(char_nodes, i, count);
     // char_nodes is now convertesd into heap array
-    for(int i =0; i<count; i++)
-        printf("%d\n", char_nodes[i]->freq);
-    fflush(stdout);
+    // for(int i=0; i<count; i++)
+    //     printf("%d '%c': %d\n", i, char_nodes[i]->val, char_nodes[i]->freq);
+    
+    struct node *left, *right, *top;
+    while (count>1) 
+    {
+        left = extractMin(char_nodes, count);
+        count--;
+        right = extractMin(char_nodes, count);
+        count--;        
+        for(int i=0; i<count; i++)
+            printf("'%c': %d\t", char_nodes[i]->val, char_nodes[i]->freq);
+        // printf("Extracted freqs: %c-%d, %c-%d\n", left->val, left->freq, right->val, right->freq);
+        struct node *top = (struct node *)malloc(sizeof(struct node));
+        top->val = '$';
+        top->freq = left->freq + right->freq;
+        top->left = left;
+        top->right = right;
+        count++;
+        insertMinHeap(char_nodes, top, count);
+        printf("count: %d\n", count);
+        printf("inserted freq: %d\n\n\n", top->freq);
 
-    return char_nodes;
-    // struct node *left, *right, *top;
-    // while (count>1) 
-    // {
-    //     left = extractMin(char_nodes, count);
-    //     count--;
-    //     right = extractMin(char_nodes, count);
-    //     count--;        
-    //     struct node *top = (struct node *)malloc(sizeof(struct node));
-    //     top->val = '$';
-    //     top->freq = left->freq + right->freq;
-    //     top->left = left;
-    //     top->right = right;
-    //     count++;
-    //     insertMinHeap(char_nodes, top, count);
-    // }
-    // return char_nodes[0];
+
+    }
+    return char_nodes[0];
 }
 
 
-// // Print the array
-// void printArray(int arr[], int n) {
-//   int i;
-//   for (i = 0; i < n; ++i)
-//     printf("%d", arr[i]);
+// Print the array
+void printArray(int arr[], int n) {
+  int i;
+  for (i = 0; i < n; ++i)
+    printf("%d", arr[i]);
 
-//   printf("\n");
-// }
+  printf("\n");
+}
 
-// void printHCodes(struct node *root, int arr[], int top) {
-//   if (root.left) {
-//     arr[top] = 0;
-//     printHCodes(root.left, arr, top + 1);
-//   }
-//   if (root.right) {
-//     arr[top] = 1;
-//     printHCodes(root.right, arr, top + 1);
-//   }
-//   if (root.right==NULL && root.left==NULL) {
-//     printf("  %c   | ", root.val);
-//     printArray(arr, top);
-//   }
-// }
+void printHCodes(struct node *root, int arr[], int top) {
+  if (root->left) {
+    arr[top] = 0;
+    printHCodes(root->left, arr, top + 1);
+  }
+  if (root->right) {
+    arr[top] = 1;
+    printHCodes(root->right, arr, top + 1);
+  }
+  if (root->right==NULL && root->left==NULL) {
+    printf("  %c   | ", root->val);
+    printArray(arr, top);
+  }
+}
 
 int main(int argc, char** argv)
 {
@@ -211,12 +225,10 @@ int main(int argc, char** argv)
             }
         }
         printf("Nodes Populated: %d\n", populated);
-        struct node** encoding_tree = findEncodings(nodes, populated);
+        struct node* encoding_tree_root = findEncodings(nodes, populated);
 
-        // printf("Root Val Freq %d, Item %c", encoding_tree[0]->freq, encoding_tree[0]->val);
-
-        // int arr[MAX_TREE_HT], top = 0;
-        // printHCodes(encoding_tree, arr, top);
+        int arr[MAX_TREE_HT], top = 0;
+        printHCodes(encoding_tree_root, arr, top);
 
 
         // ===================================================

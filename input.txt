@@ -1,11 +1,1 @@
-10
-a4
-b2
-c6
-d1
-e8
-f2
-g6
-h5
-i1
-j3 new character beacch
+aaaabbbbbbcccccdddddddddddeefxyz
