@@ -6,15 +6,6 @@
 
 #define MAX_TREE_HT 10
 
-
-int fsize(FILE *fp){
-    int prev=ftell(fp);
-    fseek(fp, 0L, SEEK_END);
-    int sz=ftell(fp);
-    fseek(fp,prev,SEEK_SET);
-    return sz;
-}
-
 int FREQUENCIES[128];
 char* CODES[128]; 
 int CODES_SIZES[128]; 
@@ -22,6 +13,7 @@ int MAX_CODE_SIZE;
 int CHUNK_SIZE;
 int FILE_SIZE;
 char* INPUT_FILE_NAME;
+char* OUTPUT_FILE_NAME;
 
 struct thread_params
 {
@@ -35,7 +27,7 @@ struct outputmeta
     int* bit_offsets;
     char** codes;
     int* codes_sizes;
-
+    int thread_count;
 };
 
 struct encode_params
@@ -53,6 +45,14 @@ struct node
     char val;
     struct node *left, *right;
 };
+
+int fsize(FILE *fp){
+    int prev=ftell(fp);
+    fseek(fp, 0L, SEEK_END);
+    int sz=ftell(fp);
+    fseek(fp,prev,SEEK_SET);
+    return sz;
+}
 
 void* frequencyCounterT(void* arguments)
 {
@@ -75,8 +75,6 @@ void* fileEncoder(void* arguments)
     FILE *ptr;
     ptr = fopen(INPUT_FILE_NAME, "r");
     fseek(ptr, args->starting_position, SEEK_SET);
-
-    // printf("out size: %ld\n", sizeof(char)*MAX_CODE_SIZE*(CHUNK_SIZE+(FILE_SIZE%CHUNK_SIZE)));
     int loop_count = 0;
 
     if(args->last==1)
@@ -100,13 +98,11 @@ void* fileEncoder(void* arguments)
         {   
             char x = code[d];
             sscanf(&x, "%d", &bit);
-            // printf("%d", bit);
             c = c << 1;
             c = c | bit;
             args->size++;
             if(args->size%8==0)
             {
-                // printf("\nCharacter: %d\n", c);
                 args->output[(args->size/8) -1] = (char)c;
                 c = 0;
             }
@@ -122,23 +118,13 @@ void* fileEncoder(void* arguments)
         }
     }
 
-    // for(int i=0; i<(args->size+7)/8; i++)
-    // {
-    //     printf("%d\t", args->output[i]);
-    // }
-
 }
 
 void minHeapify(struct node **char_nodes, int i, int count)
 {
     // Sorting values by frequency
-    // Parent: (i-1)/2
-    // Left Child (2*i)+1
-    // Right Child (2*i)+2
-    //Starting from Last level -1
+    // Parent: (i-1)/2 // Left Child (2*i)+1 // Right Child (2*i)+2 //Starting from Last level -1
     int current = i;
-    // printf("%d: %c\n", current, char_nodes[current]->val);
-    // printf("Index (%d)\n", current);
     int left_child = 2*i+1;
     int right_child = 2*i+2;
     // set current to left child index
@@ -154,7 +140,6 @@ void minHeapify(struct node **char_nodes, int i, int count)
         struct node *t = *&char_nodes[current];
         *&char_nodes[current] = *&char_nodes[i];
         *&char_nodes[i] = t;
-        // printf("'%c'[%d] with current '%c'[%d]\n", char_nodes[i]->val, char_nodes[i]->freq, char_nodes[current]->val, char_nodes[current]->freq);
         minHeapify(char_nodes, current, count);
     }
 }
@@ -182,8 +167,6 @@ struct node* findEncodings(struct node** char_nodes, int count)
     for (int i = (count - 1); i >= 0; --i)
         minHeapify(char_nodes, i, count);
     // char_nodes is now convertesd into heap array
-    // for(int i=0; i<count; i++)
-    //     printf("%d '%c': %d\n", i, char_nodes[i]->val, char_nodes[i]->freq);
     
     struct node *left, *right, *top;
     while (count>1) 
@@ -192,9 +175,6 @@ struct node* findEncodings(struct node** char_nodes, int count)
         count--;
         right = extractMin(char_nodes, count);
         count--;        
-        // for(int i=0; i<count; i++)
-        //     printf("'%c': %d\t", char_nodes[i]->val, char_nodes[i]->freq);
-        // printf("Extracted freqs: %c-%d, %c-%d\n", left->val, left->freq, right->val, right->freq);
         struct node *top = (struct node *)malloc(sizeof(struct node));
         top->val = '$';
         top->freq = left->freq + right->freq;
@@ -202,14 +182,9 @@ struct node* findEncodings(struct node** char_nodes, int count)
         top->right = right;
         count++;
         insertMinHeap(char_nodes, top, count);
-        // printf("count: %d\n", count);
-        // printf("inserted freq: %d\n\n\n", top->freq);
-
-
     }
     return char_nodes[0];
 }
-
 
 // Print the array
 void printArray(int arr[], int n, char val) {
@@ -224,9 +199,6 @@ void printArray(int arr[], int n, char val) {
     CODES_SIZES[(int)val] = n;
     if (MAX_CODE_SIZE < n)
         MAX_CODE_SIZE = n;
-    // printf("\n%s", code);
-    
-
   printf("\n");
 }
 
@@ -245,15 +217,8 @@ void printHCodes(struct node *root, int arr[], int top) {
   }
 }
 
-int main(int argc, char** argv)
+void zip(int t_count)
 {
-    MAX_CODE_SIZE = 0;
-    int t_count = 1;
-    if (argc >= 3)
-    {
-        INPUT_FILE_NAME = argv[1];
-        sscanf(argv[2], "%d", &t_count);
-    }
     FILE* ptr;
     ptr = fopen(INPUT_FILE_NAME, "r");
     if (NULL == ptr)
@@ -269,9 +234,6 @@ int main(int argc, char** argv)
         CHUNK_SIZE = (int)FILE_SIZE/t_count;
         printf("Chunk size is: %d\n", CHUNK_SIZE);
         fclose(ptr);
-        // printf("File size is: %d\n", file_size);
-        // printf("Chunk size for each thread: %d\n", CHUNK_SIZE);
-        // char ch;
         pthread_t tids[t_count];
         struct thread_params args[t_count];
         for(int i=0; i<t_count; i++)
@@ -288,13 +250,11 @@ int main(int argc, char** argv)
         for (int i = 0; i < t_count; i++) 
             pthread_join(tids[i], NULL); 
 
-        // ==============================================
+        // ======================== CREATING TREE ======================
 
-        // printf("Frequencies of all Characters:\n");
         int char_count = 0;
         for(int i=0; i<128; i++)
         {
-            // printf("%d: %d\n", i, FREQUENCIES[i]);
             if (FREQUENCIES[i] > 0)
                 char_count++;
         }    
@@ -315,13 +275,13 @@ int main(int argc, char** argv)
             }
         }
         printf("Nodes Populated: %d\n", populated);
-        struct node* encoding_tree_root = findEncodings(nodes, populated);
+        struct node* encoding_tree_root  = findEncodings(nodes, populated);
 
         int arr[MAX_TREE_HT], top = 0;
         printHCodes(encoding_tree_root, arr, top);
 
 
-        // ===================================================
+        // ============================== Getting encoded values =====================
 
 
         pthread_t encode_tids[t_count];
@@ -338,6 +298,8 @@ int main(int argc, char** argv)
 
         for (int i = 0; i < t_count; i++) 
             pthread_join(encode_tids[i], NULL); 
+
+        // =========================== saving to file ===================
 
         int total_file_size = 0;
         for(int i=0; i<t_count; i++)
@@ -372,14 +334,18 @@ int main(int argc, char** argv)
         }
 
         FILE *fptr;
-        fptr = fopen("./output.txt","w");
+        char* out_name_enc = malloc(sizeof(char)*strlen(OUTPUT_FILE_NAME));
+        strcpy(out_name_enc, OUTPUT_FILE_NAME);
+        char* out_name = strcat(OUTPUT_FILE_NAME,".txt");
+        out_name_enc = strcat(out_name_enc, "_encoding.bin");
+
+        fptr = fopen(out_name,"w");
 
         if(fptr == NULL)
         {
             printf("Error!\n");   
             exit(1);             
         }
-        // printf("Output Array: %s\n", output_array);
         for(int i=0; i<index; i++)
             printf("%d\t", output_array[i]);
 
@@ -388,7 +354,7 @@ int main(int argc, char** argv)
         fclose(fptr);
 
         FILE *p;
-        if ((p = fopen("./output_encoding.bin","wb")) == NULL){
+        if ((p = fopen(out_name_enc,"wb")) == NULL){
             printf("Error! opening file");
             exit(1);
         }
@@ -396,5 +362,60 @@ int main(int argc, char** argv)
         fwrite(&meta, sizeof(struct outputmeta), 1, fptr); 
         fclose(p); 
     }
+
+}
+
+void unzip(int t_count)
+{
+    struct outputmeta info;
+    FILE *fptr;
+
+    if ((fptr = fopen(INPUT_FILE_NAME, "rb")) == NULL){
+        printf("Error! opening file");
+        exit(1);
+    }
+
+    fread(&info, sizeof(struct outputmeta), 1, fptr); 
+    fclose(fptr);
+    // for(int i=0; i<1; i++)
+    //     printf("%d\t", info.bit_offset_index[i]);
+    // int i = info.bit_offset_index[0];
+    // printf("%d", i);
+    // printf("%d\t", info.bit_offset_index[0]); 
+    // printf("%d\t", info.bit_offsets[0]); 
+    // printf("%c\t", info.codes[0][0]); 
+    // printf("%d\t", info.codes_sizes[0]); 
+}
+
+int main(int argc, char** argv)
+{
+    MAX_CODE_SIZE = 0;
+    int t_count = 1;
+    if (argc >= 5)
+    {
+        INPUT_FILE_NAME = argv[2];
+        OUTPUT_FILE_NAME = argv[4];
+        sscanf(argv[3], "%d", &t_count);
+    }
+    else
+    {
+        printf("Not all arguments given.\n");
+        exit(EXIT_FAILURE); 
+    }
+
+    if (strcmp(argv[1], "zip") == 0) 
+    {
+            zip(t_count); 
+    }
+    else if (strcmp(argv[1], "unzip") == 0)
+    {
+        unzip(t_count);
+    }
+    else
+    {
+        printf("First argument is invalid\n");
+        exit(EXIT_FAILURE);
+    }
+    
     return 0;
 }
