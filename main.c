@@ -16,6 +16,7 @@ int fsize(FILE *fp){
 }
 
 int FREQUENCIES[128];
+char* CODES[128]; 
 int CHUNK_SIZE = 10;
 char* INPUT_FILE_NAME;
 
@@ -83,20 +84,13 @@ struct node *extractMin(struct node **minHeap, int count) {
 }
 
 // Insertion function
-void insertMinHeap(struct node **char_nodes, struct node *new_node, int count) {
-  int i = count-1;
-  char_nodes[i] = new_node;
-  while (i>0 && new_node->freq < char_nodes[(i - 1) / 2]->freq) 
-  {
-    // printf("Swapped %d %c-%d with %c-%d\n",i,  char_nodes[i]->val, char_nodes[i]->freq, char_nodes[(i-1)/2]->val, char_nodes[(i-1)/2]->freq);
-    struct node *t = *&char_nodes[(i - 1) / 2];
-    *&char_nodes[i] = t;
-    *&char_nodes[(i - 1) / 2] = *&char_nodes[i];;
-    i = (i - 1) / 2;
-    // for(int i=0; i<count; i++)
-    //     printf("'%c': %d\t", char_nodes[i]->val, char_nodes[i]->freq);
-  }
-//   char_nodes[i] = new_node;
+void insertMinHeap(struct node **minHeap, struct node *minHeapNode, int count) {
+    int i = count-1;
+    while (i && minHeapNode->freq < minHeap[(i - 1) / 2]->freq) {
+        minHeap[i] = minHeap[(i - 1) / 2];
+        i = (i - 1) / 2;
+    }
+    minHeap[i] = minHeapNode;
 }
 
 struct node* findEncodings(struct node** char_nodes, int count)
@@ -114,8 +108,8 @@ struct node* findEncodings(struct node** char_nodes, int count)
         count--;
         right = extractMin(char_nodes, count);
         count--;        
-        for(int i=0; i<count; i++)
-            printf("'%c': %d\t", char_nodes[i]->val, char_nodes[i]->freq);
+        // for(int i=0; i<count; i++)
+        //     printf("'%c': %d\t", char_nodes[i]->val, char_nodes[i]->freq);
         // printf("Extracted freqs: %c-%d, %c-%d\n", left->val, left->freq, right->val, right->freq);
         struct node *top = (struct node *)malloc(sizeof(struct node));
         top->val = '$';
@@ -124,8 +118,8 @@ struct node* findEncodings(struct node** char_nodes, int count)
         top->right = right;
         count++;
         insertMinHeap(char_nodes, top, count);
-        printf("count: %d\n", count);
-        printf("inserted freq: %d\n\n\n", top->freq);
+        // printf("count: %d\n", count);
+        // printf("inserted freq: %d\n\n\n", top->freq);
 
 
     }
@@ -134,10 +128,17 @@ struct node* findEncodings(struct node** char_nodes, int count)
 
 
 // Print the array
-void printArray(int arr[], int n) {
-  int i;
-  for (i = 0; i < n; ++i)
-    printf("%d", arr[i]);
+void printArray(int arr[], int n, char val) {
+    int i;
+    char* code = malloc(sizeof(char)*n);
+    for (i = 0; i < n; ++i)
+    {
+        printf("%d", arr[i]);
+        sprintf(&code[i], "%d", arr[i]);
+    }
+    CODES[(int)val] = code;
+    // printf("\n%s", code);
+    
 
   printf("\n");
 }
@@ -153,7 +154,7 @@ void printHCodes(struct node *root, int arr[], int top) {
   }
   if (root->right==NULL && root->left==NULL) {
     printf("  %c   | ", root->val);
-    printArray(arr, top);
+    printArray(arr, top, root->val);
   }
 }
 
@@ -220,7 +221,7 @@ int main(int argc, char** argv)
                 nodes[populated]->freq = FREQUENCIES[i]; 
                 nodes[populated]->right = NULL;
                 nodes[populated]->left = NULL;
-                // printf("%d '%c': %d\n", populated, nodes[populated]->val, nodes[populated]->freq);
+                printf("%d '%c': %d\n", populated, nodes[populated]->val, nodes[populated]->freq);
                 populated++;
             }
         }
@@ -232,6 +233,21 @@ int main(int argc, char** argv)
 
 
         // ===================================================
+
+        // pthread_t encode_tids[t_count];
+        // struct encode_params argz[t_count];
+        // for(int i=0; i<t_count; i++)
+        // {
+        //     argz[i].starting_position=i*CHUNK_SIZE;
+        //     if (i == t_count-1)
+        //         argz[i].last = 1;
+        //     else
+        //         argz[i].last=0;
+        //     pthread_create(&encode_tids[i], NULL, fileEncoder, (void *) &argz[i]);
+        // }
+
+        // for (int i = 0; i < t_count; i++) 
+        //     pthread_join(encode_tids[i], NULL); 
 
     }
 
