@@ -299,6 +299,7 @@ int main(int argc, char** argv)
         for (int i = 0; i < t_count; i++) 
             pthread_join(encode_tids[i], NULL); 
 
+        int total_file_size = 0;
         for(int i=0; i<t_count; i++)
         {
             for(int j=0; j<argz[i].size; j++)
