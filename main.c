@@ -17,13 +17,24 @@ int fsize(FILE *fp){
 
 int FREQUENCIES[128];
 char* CODES[128]; 
-int CHUNK_SIZE = 10;
+int CODES_SIZES[128]; 
+int MAX_CODE_SIZE;
+int CHUNK_SIZE;
+int FILE_SIZE;
 char* INPUT_FILE_NAME;
 
 struct thread_params
 {
     int starting_position;
     int last;
+};
+
+struct encode_params
+{
+    int starting_position;
+    int last;
+    char* output;
+    int size;
 };
 
 struct node
@@ -40,9 +51,42 @@ void* frequencyCounterT(void* arguments)
     FILE *ptr;
     ptr = fopen(INPUT_FILE_NAME, "r");
     fseek(ptr, args->starting_position, SEEK_SET);
-    
-    for (int i=0; i<CHUNK_SIZE; i++)
+    int remainder = 0;
+    if (args->last)
+        remainder=FILE_SIZE%CHUNK_SIZE;
+    for (int i=0; i<CHUNK_SIZE+remainder; i++)
         FREQUENCIES[(int)fgetc(ptr)] +=1;    
+}
+
+void* fileEncoder(void* arguments)
+{
+    struct encode_params* args;
+    args = (struct encode_params*)arguments; 
+    FILE *ptr;
+    ptr = fopen(INPUT_FILE_NAME, "r");
+    fseek(ptr, args->starting_position, SEEK_SET);
+
+    // printf("out size: %ld\n", sizeof(char)*MAX_CODE_SIZE*(CHUNK_SIZE+(FILE_SIZE%CHUNK_SIZE)));
+    int loop_count = 0;
+
+    if(args->last==1)
+    {    
+    loop_count = CHUNK_SIZE+(FILE_SIZE%CHUNK_SIZE);
+    args->output = malloc(sizeof(char)*MAX_CODE_SIZE*loop_count);
+    }    
+    else
+    {
+        loop_count = CHUNK_SIZE;
+        args->output = malloc(sizeof(char)*MAX_CODE_SIZE*loop_count);
+    }
+    args->size = 0;
+    for (int i=0; i<loop_count; i++)
+     {  int val = (int)fgetc(ptr); 
+        char* code =  CODES[val];
+        for (int d=0; d < CODES_SIZES[val]; d++)
+            {args->output[args->size] = code[d];
+            // printf("%c ", args->output[args->size]);
+            args->size++;}}
 }
 
 void minHeapify(struct node **char_nodes, int i, int count)
@@ -137,6 +181,9 @@ void printArray(int arr[], int n, char val) {
         sprintf(&code[i], "%d", arr[i]);
     }
     CODES[(int)val] = code;
+    CODES_SIZES[(int)val] = n;
+    if (MAX_CODE_SIZE < n)
+        MAX_CODE_SIZE = n;
     // printf("\n%s", code);
     
 
@@ -160,6 +207,7 @@ void printHCodes(struct node *root, int arr[], int top) {
 
 int main(int argc, char** argv)
 {
+    MAX_CODE_SIZE = 0;
     int t_count = 1;
     if (argc >= 3)
     {
@@ -177,8 +225,9 @@ int main(int argc, char** argv)
         for(int i=0; i<128; i++)
             FREQUENCIES[i]=0;
 
-        int file_size = fsize(ptr);
-        CHUNK_SIZE = (int)file_size/t_count;
+        FILE_SIZE = fsize(ptr);
+        CHUNK_SIZE = (int)FILE_SIZE/t_count;
+        printf("Chunk size is: %d\n", CHUNK_SIZE);
         fclose(ptr);
         // printf("File size is: %d\n", file_size);
         // printf("Chunk size for each thread: %d\n", CHUNK_SIZE);
@@ -234,20 +283,31 @@ int main(int argc, char** argv)
 
         // ===================================================
 
-        // pthread_t encode_tids[t_count];
-        // struct encode_params argz[t_count];
-        // for(int i=0; i<t_count; i++)
-        // {
-        //     argz[i].starting_position=i*CHUNK_SIZE;
-        //     if (i == t_count-1)
-        //         argz[i].last = 1;
-        //     else
-        //         argz[i].last=0;
-        //     pthread_create(&encode_tids[i], NULL, fileEncoder, (void *) &argz[i]);
-        // }
 
-        // for (int i = 0; i < t_count; i++) 
-        //     pthread_join(encode_tids[i], NULL); 
+        pthread_t encode_tids[t_count];
+        struct encode_params argz[t_count];
+        for(int i=0; i<t_count; i++)
+        {
+            argz[i].starting_position=i*CHUNK_SIZE;
+            if (i == t_count-1)
+                argz[i].last = 1;
+            else
+                argz[i].last=0;
+            pthread_create(&encode_tids[i], NULL, fileEncoder, (void *) &argz[i]);
+        }
+
+        for (int i = 0; i < t_count; i++) 
+            pthread_join(encode_tids[i], NULL); 
+
+        for(int i=0; i<t_count; i++)
+        {
+            for(int j=0; j<argz[i].size; j++)
+            {
+                printf("%c", argz[i].output[j]);
+            }
+            printf("\n");
+        }
+        printf("\n\n");
 
     }
 
