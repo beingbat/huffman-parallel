@@ -29,12 +29,22 @@ struct thread_params
     int last;
 };
 
+struct outputmeta
+{
+    int* bit_offset_index;
+    int* bit_offsets;
+    char** codes;
+    int* codes_sizes;
+
+};
+
 struct encode_params
 {
     int starting_position;
     int last;
     char* output;
     int size;
+    int bit_offset;
 };
 
 struct node
@@ -70,23 +80,53 @@ void* fileEncoder(void* arguments)
     int loop_count = 0;
 
     if(args->last==1)
-    {    
-    loop_count = CHUNK_SIZE+(FILE_SIZE%CHUNK_SIZE);
-    args->output = malloc(sizeof(char)*MAX_CODE_SIZE*loop_count);
-    }    
+        loop_count = CHUNK_SIZE+(FILE_SIZE%CHUNK_SIZE);
     else
-    {
         loop_count = CHUNK_SIZE;
-        args->output = malloc(sizeof(char)*MAX_CODE_SIZE*loop_count);
-    }
+
+    unsigned int xsize = (sizeof(char)*MAX_CODE_SIZE*loop_count)/8;
+    if (xsize < 1)
+        xsize=1;
+    args->output = malloc(xsize);
+
     args->size = 0;
+    int c = 0;
+    int bit = 0;
     for (int i=0; i<loop_count; i++)
-     {  int val = (int)fgetc(ptr); 
+    {
+        int val = (int)fgetc(ptr); 
         char* code =  CODES[val];
         for (int d=0; d < CODES_SIZES[val]; d++)
-            {args->output[args->size] = code[d];
-            // printf("%c ", args->output[args->size]);
-            args->size++;}}
+        {   
+            char x = code[d];
+            sscanf(&x, "%d", &bit);
+            // printf("%d", bit);
+            c = c << 1;
+            c = c | bit;
+            args->size++;
+            if(args->size%8==0)
+            {
+                // printf("\nCharacter: %d\n", c);
+                args->output[(args->size/8) -1] = (char)c;
+                c = 0;
+            }
+            else if(d==CODES_SIZES[val]-1 && i==loop_count-1)
+            {
+                args->bit_offset = args->size%8;
+                if (args->bit_offset > 0)
+                {
+                    c << 8-args->bit_offset;
+                    args->output[(args->size/8)] = (char)c;
+                }
+            }
+        }
+    }
+
+    // for(int i=0; i<(args->size+7)/8; i++)
+    // {
+    //     printf("%d\t", args->output[i]);
+    // }
+
 }
 
 void minHeapify(struct node **char_nodes, int i, int count)
@@ -301,16 +341,60 @@ int main(int argc, char** argv)
 
         int total_file_size = 0;
         for(int i=0; i<t_count; i++)
+            total_file_size+= argz[i].size;
+        
+        char* output_array = malloc(sizeof(char)*(total_file_size+7)/8);
+
+        struct outputmeta meta;
+        meta.codes = CODES;
+        meta.codes_sizes = CODES_SIZES;
+        meta.bit_offset_index = malloc(sizeof(int)*t_count); 
+        meta.bit_offsets = malloc(sizeof(int)*t_count);
+
+        int index = 0;
+        int offsets_count = 0;
+        for (int i=0; i<t_count; i++)
         {
-            for(int j=0; j<argz[i].size; j++)
-            {
-                printf("%c", argz[i].output[j]);
+            int j;
+            for(j=0; j<argz[i].size/8; j++)
+            {   output_array[index] = argz[i].output[j];
+                index += 1;
             }
+            if(argz[i].bit_offset > 0)
+            {
+                output_array[index] = argz[i].output[j];
+                index += 1;
+                offsets_count +=1;
+            }
+            meta.bit_offset_index[i] = index; 
+            meta.bit_offsets[i] = argz[i].bit_offset;
             printf("\n");
         }
-        printf("\n\n");
 
+        FILE *fptr;
+        fptr = fopen("./output.txt","w");
+
+        if(fptr == NULL)
+        {
+            printf("Error!\n");   
+            exit(1);             
+        }
+        // printf("Output Array: %s\n", output_array);
+        for(int i=0; i<index; i++)
+            printf("%d\t", output_array[i]);
+
+        int return_val = fputs(output_array, fptr);
+         
+        fclose(fptr);
+
+        FILE *p;
+        if ((p = fopen("./output_encoding.bin","wb")) == NULL){
+            printf("Error! opening file");
+            exit(1);
+        }
+        
+        fwrite(&meta, sizeof(struct outputmeta), 1, fptr); 
+        fclose(p); 
     }
-
     return 0;
 }
