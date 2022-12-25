@@ -1,5 +1,3 @@
 *.docx
 *.out
 .vscode/
-main.c
-code.c
